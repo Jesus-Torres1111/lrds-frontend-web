@@ -11,6 +11,7 @@ export const setGlobalTenantId = (id: string) => {
 publicApi.interceptors.request.use((config) => {
   const tenantId = localStorage.getItem('current_tenant_id') || '1';
   config.headers['X-Tenant-ID'] = tenantId;
+  config.headers['ngrok-skip-browser-warning'] = 'true';
   return config;
 });
 
