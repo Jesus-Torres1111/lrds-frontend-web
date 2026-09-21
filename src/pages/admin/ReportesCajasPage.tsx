@@ -246,7 +246,10 @@ export default function ReportesCajasPage() {
   const descargarExcel = () => {
     if (sesiones.length === 0) return sileo.error({ title: 'No hay datos para exportar' });
     const token = useAuthStore.getState().token;
-    let url = `http://localhost:8080/api/caja/auditoria/excel?inicio=${fechaInicio}&fin=${fechaFin}&token=${encodeURIComponent(token || '')}`;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+    
+    let url = `${baseUrl}/api/caja/auditoria/excel?inicio=${fechaInicio}&fin=${fechaFin}&token=${encodeURIComponent(token || '')}`;
     if (sedeSeleccionadaId) url += `&sedeId=${sedeSeleccionadaId}`;
     window.location.href = url;
   };

@@ -918,9 +918,12 @@ export default function CajeroPage() {
 
   useEffect(() => { cargarEstado(); }, [cargarEstado]);
 
-  useEffect(() => {
+useEffect(() => {
     const token = useAuthStore.getState().token;
-    const es = new EventSource(`http://localhost:8080/api/kds/eventos?token=${token}`);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+    const es = new EventSource(`${baseUrl}/api/kds/eventos?token=${token}`);
+    
     es.addEventListener('PEDIDO_LISTO', () => cargarEstado());
     es.addEventListener('NUEVA_COMANDA', () => cargarEstado());
     return () => es.close();

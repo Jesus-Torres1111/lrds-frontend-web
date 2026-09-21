@@ -403,9 +403,12 @@ export default function DashboardPage() {
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
-  const descargarExcel = () => {
+const descargarExcel = () => {
     const token = useAuthStore.getState().token;
-    let url = `http://localhost:8080/api/reportes/excel?inicio=${inicio}&fin=${fin}&token=${token}`;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+    
+    let url = `${baseUrl}/api/reportes/excel?inicio=${inicio}&fin=${fin}&token=${token}`;
     if (sedeSeleccionadaId) url += `&sedeId=${sedeSeleccionadaId}`;
     window.open(url, '_blank');
   };

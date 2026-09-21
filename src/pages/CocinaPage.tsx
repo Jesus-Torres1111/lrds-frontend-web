@@ -400,12 +400,14 @@ export default function CocinaPage() {
 
   const conectarSSE = useCallback(() => {
     const token = useAuthStore.getState().token;
-    const es = new EventSource(`http://localhost:8080/api/kds/eventos?token=${token}`);
-    
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+    const es = new EventSource(`${baseUrl}/api/kds/eventos?token=${token}`);
+         
     es.addEventListener('NUEVO_PEDIDO', () => cargarDatos());
     es.addEventListener('NUEVA_COMANDA', () => cargarDatos());
     es.addEventListener('PEDIDO_CANCELADO', () => cargarDatos());
-    
+         
     es.onerror = () => {
       es.close();
       setTimeout(conectarSSE, 5000);

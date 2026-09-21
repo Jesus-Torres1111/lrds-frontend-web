@@ -706,10 +706,12 @@ export default function MozoPage() {
     cargarPedidos();
   }, [cargarPedidos]);
 
-  useEffect(() => {
+useEffect(() => {
     const token = useAuthStore.getState().token;
-    const es = new EventSource(`http://localhost:8080/api/kds/eventos?token=${token}`);
-    
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+    const es = new EventSource(`${baseUrl}/api/kds/eventos?token=${token}`);
+         
     const agg = (data: any) => {
       setNotificaciones(prev => {
         if (prev.some(n => n.pedidoId === data.pedidoId)) return prev;
@@ -718,11 +720,10 @@ export default function MozoPage() {
       });
       cargarPedidos();
     };
-
+    
     es.addEventListener('PEDIDO_LISTO', e => agg(JSON.parse(e.data)));
     es.addEventListener('AVISO_PEDIDO_LISTO', e => agg(JSON.parse(e.data)));
     es.addEventListener('EN_PREPARACION', () => cargarPedidos());
-
     return () => es.close();
   }, [cargarPedidos, reproducirSonido]);
 

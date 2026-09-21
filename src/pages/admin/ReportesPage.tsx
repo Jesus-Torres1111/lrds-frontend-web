@@ -260,9 +260,12 @@ export default function ReportesPage() {
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
-  const descargarExcelVentas = () => {
+const descargarExcelVentas = () => {
     const token = useAuthStore.getState().token;
-    let url = `http://localhost:8080/api/reportes/excel?inicio=${inicio}&fin=${fin}&token=${encodeURIComponent(token || '')}`;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+    const baseUrl = apiUrl.endsWith('/api') ? apiUrl.slice(0, -4) : apiUrl;
+    
+    let url = `${baseUrl}/api/reportes/excel?inicio=${inicio}&fin=${fin}&token=${encodeURIComponent(token || '')}`;
     if (sedeSeleccionadaId) url += `&sedeId=${sedeSeleccionadaId}`;
     window.location.href = url;
   };
