@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { Search, Calendar as CalendarIcon, Receipt, X, Filter, Box, ChevronLeft, ChevronRight, ChevronDown, Check, RefreshCw } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Receipt, X, Box, ChevronLeft, ChevronRight, ChevronDown, Check, RefreshCw } from 'lucide-react';
 import { getHistorialPedidos } from '@/api/pedidos';
 import type { PedidoActivo } from '@/types';
 import { fechaPeruISO, formatearFechaHoraPeru } from '@/lib/datetimePeru';
