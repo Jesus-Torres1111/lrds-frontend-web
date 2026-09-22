@@ -82,9 +82,16 @@ try {
         nombreRecojo: orderData.method === 'pickup' ? orderData.pickupName : ''
       };
 
-      const response = await procesarCheckoutPublico(payload);
+const response = await procesarCheckoutPublico(payload);
       clearCart();
-      window.location.href = response.preferenciaPagoUrl; // Redirección a Mercado Pago
+      
+      // El backend de Java envía la URL bajo el nombre "initPoint", no "preferenciaPagoUrl"
+      if (response.initPoint) {
+        window.location.href = response.initPoint;
+      } else {
+        setError('El servidor no devolvió el link de pago.');
+        setIsProcessing(false);
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al procesar el pago.');
       setIsProcessing(false);
