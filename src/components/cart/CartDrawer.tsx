@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Plus, ShoppingBag, Trash2, Lock, Loader2, ShieldCheck, ArrowLeft, MapPin, Store, Phone, Map, UserCircle, Info } from 'lucide-react';
+import { X, Minus, Plus, ShoppingBag, Trash2, Lock, Loader2, ShieldCheck, ArrowLeft, MapPin, Store, Phone, Map, UserCircle, Info,  } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
+import KRGlue from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, clearCart, getTotal } = useCartStore() as any;
@@ -12,6 +13,8 @@ export const CartDrawer = () => {
   const [view, setView] = useState<'cart' | 'checkout'>('cart');
   const [showMapHelp, setShowMapHelp] = useState(false);
   
+  const [formToken, setFormToken] = useState<string>('');
+
   const [orderData, setOrderData] = useState({
     method: 'delivery', 
     address: '',
@@ -65,8 +68,7 @@ export const CartDrawer = () => {
     setError('');
     setIsProcessing(true);
     
-try {
-      // AQUÍ ESTÁ LA CORRECCIÓN: Enviamos sedeId: 1 (Sede Principal)
+    try {
       const payload = {
         tipoConsumo: orderData.method === 'delivery' ? 'DELIVERY' : 'PARA_LLEVAR',
         notasGenerales: orderData.method === 'delivery' ? 'Pedido para Delivery' : 'Pedido para Recojo',
@@ -83,13 +85,47 @@ try {
       };
 
       const response = await procesarCheckoutPublico(payload);
-      clearCart();
-      window.location.href = response.preferenciaPagoUrl; // Redirección a Mercado Pago
+      setFormToken(response.urlPasarela || response.preferenciaPagoUrl); 
+      setIsProcessing(false);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al procesar el pago.');
       setIsProcessing(false);
     }
   };
+
+ useEffect(() => {
+    if (formToken) {
+      const initIzipay = async () => {
+        try {
+          // @ts-ignore
+          const { KR } = await KRGlue.loadLibrary('https://static.micuentaweb.pe', '69876357:testpublickey_D8kP2sL2uP8xS1gS1O1eFjPjQ0bS1wZ0');
+          
+          await KR.setFormConfig({ 
+            formToken: formToken, 
+            'kr-language': 'es-PE' 
+          });
+          
+          await KR.onSubmit((paymentData: any) => {
+            console.log("¡Pago exitoso!", paymentData);
+            clearCart();
+            setView('cart');
+            setFormToken('');
+            toggleCart();
+            return false; 
+          });
+          
+          const { result } = await KR.addForm('#myPaymentForm');
+          await KR.showForm(result.formId);
+
+        } catch (error) {
+          console.error("Error al cargar Izipay", error);
+          setError("Error al conectar con la pasarela de pagos.");
+        }
+      };
+
+      initIzipay();
+    }
+  }, [formToken]);
 
   const handleClose = () => {
     toggleCart();
@@ -97,6 +133,7 @@ try {
       setView('cart');
       setError('');
       setShowMapHelp(false);
+      setFormToken('');
     }, 300); 
   };
 
@@ -124,7 +161,7 @@ try {
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <button onClick={() => {setView('cart'); setError('');}} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full hover:bg-brand hover:text-black transition-colors text-white">
+                  <button onClick={() => {setView('cart'); setError(''); setFormToken('');}} className="w-10 h-10 flex items-center justify-center bg-white/5 rounded-full hover:bg-brand hover:text-black transition-colors text-white">
                     <ArrowLeft size={20} />
                   </button>
                   <h2 className="text-2xl font-display font-black text-white leading-none uppercase">Checkout</h2>
@@ -196,156 +233,170 @@ try {
                   <motion.div key="checkout-view" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full flex flex-col">
                     <div className="flex-1 px-6 py-5 space-y-6">
                       
-                      <div className="space-y-3">
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block">Método de entrega</label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <button onClick={() => {setOrderData({...orderData, method: 'delivery'}); setError('');}} className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderData.method === 'delivery' ? 'bg-brand/10 border-brand text-brand' : 'bg-surface border-white/5 text-gray-400 hover:border-white/20'}`}>
-                            <MapPin size={24} />
-                            <span className="font-bold text-sm">Delivery</span>
-                          </button>
-                          <button onClick={() => {setOrderData({...orderData, method: 'pickup'}); setError('');}} className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderData.method === 'pickup' ? 'bg-brand/10 border-brand text-brand' : 'bg-surface border-white/5 text-gray-400 hover:border-white/20'}`}>
-                            <Store size={24} />
-                            <span className="font-bold text-sm">Recojo en Sede</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block border-b border-white/5 pb-2">Tus Datos</label>
-                        
-                        <div className="space-y-4">
-                          <div className="relative">
-                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                            <input 
-                              type="tel" placeholder="Teléfono de contacto (9 dígitos)" 
-                              value={orderData.phone} onChange={handlePhoneChange}
-                              className="w-full pl-11 pr-4 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
-                            />
-                            {orderData.phone.length === 9 && (
-                              <ShieldCheck className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500" size={18} />
-                            )}
+                      {!formToken ? (
+                        <>
+                          <div className="space-y-3">
+                            <label className="text-xs font-black text-gray-400 uppercase tracking-widest block">Método de entrega</label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button onClick={() => {setOrderData({...orderData, method: 'delivery'}); setError('');}} className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderData.method === 'delivery' ? 'bg-brand/10 border-brand text-brand' : 'bg-surface border-white/5 text-gray-400 hover:border-white/20'}`}>
+                                <MapPin size={24} />
+                                <span className="font-bold text-sm">Delivery</span>
+                              </button>
+                              <button onClick={() => {setOrderData({...orderData, method: 'pickup'}); setError('');}} className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderData.method === 'pickup' ? 'bg-brand/10 border-brand text-brand' : 'bg-surface border-white/5 text-gray-400 hover:border-white/20'}`}>
+                                <Store size={24} />
+                                <span className="font-bold text-sm">Recojo en Sede</span>
+                              </button>
+                            </div>
                           </div>
 
-                          <AnimatePresence mode="wait">
-                            {orderData.method === 'pickup' && (
-                              <motion.div key="pickup-form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative pt-1 overflow-hidden">
-                                <UserCircle className="absolute left-4 top-[1.3rem] text-gray-500" size={18} />
+                          <div className="space-y-4">
+                            <label className="text-xs font-black text-gray-400 uppercase tracking-widest block border-b border-white/5 pb-2">Tus Datos</label>
+                            
+                            <div className="space-y-4">
+                              <div className="relative">
+                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
                                 <input 
-                                  type="text" placeholder="Nombre de quien recoge" 
-                                  value={orderData.pickupName} onChange={(e) => setOrderData({...orderData, pickupName: e.target.value})}
+                                  type="tel" placeholder="Teléfono de contacto (9 dígitos)" 
+                                  value={orderData.phone} onChange={handlePhoneChange}
                                   className="w-full pl-11 pr-4 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
                                 />
-                              </motion.div>
-                            )}
+                                {orderData.phone.length === 9 && (
+                                  <ShieldCheck className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500" size={18} />
+                                )}
+                              </div>
 
-                            {orderData.method === 'delivery' && (
-                              <motion.div key="delivery-form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-4 overflow-hidden pt-1">
-                                
-                                <div className="relative">
-                                  <MapPin className="absolute left-4 top-[1.05rem] text-gray-500" size={18} />
-                                  <input 
-                                    type="text" placeholder="Dirección escrita (Ej: Urb. Puente Blanco)" 
-                                    value={orderData.address} onChange={(e) => setOrderData({...orderData, address: e.target.value})}
-                                    className="w-full pl-11 pr-4 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
-                                  />
-                                </div>
-                                
-                                <div className="space-y-2">
-                                  <div className="relative">
-                                    <Map className="absolute left-4 top-[1.05rem] text-gray-500" size={18} />
+                              <AnimatePresence mode="wait">
+                                {orderData.method === 'pickup' && (
+                                  <motion.div key="pickup-form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="relative pt-1 overflow-hidden">
+                                    <UserCircle className="absolute left-4 top-[1.3rem] text-gray-500" size={18} />
                                     <input 
-                                      type="text" placeholder="Link de Google Maps" 
-                                      value={orderData.mapUrl} onChange={(e) => setOrderData({...orderData, mapUrl: e.target.value})}
-                                      className="w-full pl-11 pr-12 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
+                                      type="text" placeholder="Nombre de quien recoge" 
+                                      value={orderData.pickupName} onChange={(e) => setOrderData({...orderData, pickupName: e.target.value})}
+                                      className="w-full pl-11 pr-4 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
                                     />
-                                    <button 
-                                      type="button"
-                                      onClick={() => setShowMapHelp(!showMapHelp)}
-                                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-brand transition-colors"
-                                    >
-                                      <Info size={20} />
-                                    </button>
-                                  </div>
-                                  
-                                  <AnimatePresence>
-                                    {showMapHelp && (
-                                      <motion.div 
-                                        initial={{ opacity: 0, height: 0 }} 
-                                        animate={{ opacity: 1, height: 'auto' }} 
-                                        exit={{ opacity: 0, height: 0 }}
-                                        className="overflow-hidden"
-                                      >
-                                        <div className="bg-brand/10 border border-brand/20 p-3.5 rounded-xl text-xs text-gray-300 space-y-2 font-medium">
-                                          <p className="text-brand font-bold">¿Cómo obtener tu link?</p>
-                                          <p>1. Abre la app de <strong className="text-white">Google Maps</strong>.</p>
-                                          <p>2. Mantén presionado sobre tu ubicación exacta.</p>
-                                          <p>3. Toca el botón <strong className="text-white">Compartir</strong>.</p>
-                                          <p>4. Selecciona <strong className="text-white">Copiar enlace</strong> y pégalo aquí.</p>
-                                        </div>
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </div>
+                                  </motion.div>
+                                )}
 
-                                <div className="relative">
-                                  <input 
-                                    type="text" placeholder="Referencia de la casa" 
-                                    value={orderData.reference} onChange={(e) => setOrderData({...orderData, reference: e.target.value})}
-                                    className="w-full px-4 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
-                                  />
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
+                                {orderData.method === 'delivery' && (
+                                  <motion.div key="delivery-form" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-4 overflow-hidden pt-1">
+                                    
+                                    <div className="relative">
+                                      <MapPin className="absolute left-4 top-[1.05rem] text-gray-500" size={18} />
+                                      <input 
+                                        type="text" placeholder="Dirección escrita (Ej: Urb. Puente Blanco)" 
+                                        value={orderData.address} onChange={(e) => setOrderData({...orderData, address: e.target.value})}
+                                        className="w-full pl-11 pr-4 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
+                                      />
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                      <div className="relative">
+                                        <Map className="absolute left-4 top-[1.05rem] text-gray-500" size={18} />
+                                        <input 
+                                          type="text" placeholder="Link de Google Maps" 
+                                          value={orderData.mapUrl} onChange={(e) => setOrderData({...orderData, mapUrl: e.target.value})}
+                                          className="w-full pl-11 pr-12 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
+                                        />
+                                        <button 
+                                          type="button"
+                                          onClick={() => setShowMapHelp(!showMapHelp)}
+                                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-brand transition-colors"
+                                        >
+                                          <Info size={20} />
+                                        </button>
+                                      </div>
+                                      
+                                      <AnimatePresence>
+                                        {showMapHelp && (
+                                          <motion.div 
+                                            initial={{ opacity: 0, height: 0 }} 
+                                            animate={{ opacity: 1, height: 'auto' }} 
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="overflow-hidden"
+                                          >
+                                            <div className="bg-brand/10 border border-brand/20 p-3.5 rounded-xl text-xs text-gray-300 space-y-2 font-medium">
+                                              <p className="text-brand font-bold">¿Cómo obtener tu link?</p>
+                                              <p>1. Abre la app de <strong className="text-white">Google Maps</strong>.</p>
+                                              <p>2. Mantén presionado sobre tu ubicación exacta.</p>
+                                              <p>3. Toca el botón <strong className="text-white">Compartir</strong>.</p>
+                                              <p>4. Selecciona <strong className="text-white">Copiar enlace</strong> y pégalo aquí.</p>
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
+
+                                    <div className="relative">
+                                      <input 
+                                        type="text" placeholder="Referencia de la casa" 
+                                        value={orderData.reference} onChange={(e) => setOrderData({...orderData, reference: e.target.value})}
+                                        className="w-full px-4 py-3.5 bg-surface border border-white/10 rounded-xl text-white text-sm font-bold focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all placeholder-gray-600"
+                                      />
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+
+                            <AnimatePresence>
+                              {error && (
+                                <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-red-400 text-xs font-bold bg-red-500/10 p-3 rounded-lg border border-red-500/20 flex items-start gap-2">
+                                  <ShieldCheck size={16} className="shrink-0 mt-0.5" />
+                                  {error}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="bg-white p-6 rounded-2xl w-full flex flex-col items-center">
+                          <h3 className="font-black text-gray-900 text-center mb-6">Ingresa los datos de tu tarjeta</h3>
+                          {/* DIV OBLIGATORIO PARA IZIPAY */}
+                          <div id="myPaymentForm"></div>
                         </div>
+                      )}
 
-                        <AnimatePresence>
-                          {error && (
-                            <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-red-400 text-xs font-bold bg-red-500/10 p-3 rounded-lg border border-red-500/20 flex items-start gap-2">
-                              <ShieldCheck size={16} className="shrink-0 mt-0.5" />
-                              {error}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
                     </div>
 
-                    <div className="px-6 pt-4 pb-6 border-t border-white/5 bg-background shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
-                      <div className="space-y-1.5 mb-5">
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-textSec font-medium">Subtotal</span>
-                          <span className="text-white font-bold">S/ {subtotal.toFixed(2)}</span>
+                    {!formToken && (
+                      <div className="px-6 pt-4 pb-6 border-t border-white/5 bg-background shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+                        <div className="space-y-1.5 mb-5">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-textSec font-medium">Subtotal</span>
+                            <span className="text-white font-bold">S/ {subtotal.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-textSec font-medium">Costo de envío</span>
+                            <span className="text-emerald-400 font-bold">{deliveryCost === 0 ? '¡GRATIS!' : `S/ ${deliveryCost.toFixed(2)}`}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-3 border-t border-white/5 mt-2">
+                            <span className="text-white text-lg font-bold">Total a pagar</span>
+                            <span className="text-3xl font-black text-white leading-none tracking-tighter">S/ {total.toFixed(2)}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-textSec font-medium">Costo de envío</span>
-                          <span className="text-emerald-400 font-bold">{deliveryCost === 0 ? '¡GRATIS!' : `S/ ${deliveryCost.toFixed(2)}`}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-3 border-t border-white/5 mt-2">
-                          <span className="text-white text-lg font-bold">Total a pagar</span>
-                          <span className="text-3xl font-black text-white leading-none tracking-tighter">S/ {total.toFixed(2)}</span>
-                        </div>
-                      </div>
 
-                      <div className="bg-surface/50 border border-white/5 p-3.5 rounded-xl mb-4 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <ShieldCheck size={16} className="text-[#009EE3]" />
-                          <span className="text-[10px] font-black tracking-widest text-white uppercase">Checkout Seguro Mercado Pago</span>
+                        <div className="bg-surface/50 border border-white/5 p-3.5 rounded-xl mb-4 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck size={16} className="text-[#FF2A3B]" />
+                            <span className="text-[10px] font-black tracking-widest text-white uppercase">Checkout Seguro Izipay</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            <span className="px-2 py-1 bg-white/5 border border-white/10 text-white rounded text-[9px] font-black tracking-wider">VISA</span>
+                            <span className="px-2 py-1 bg-white/5 border border-white/10 text-white rounded text-[9px] font-black tracking-wider">MASTERCARD</span>
+                            <span className="px-2 py-1 bg-[#FF2A3B]/10 border border-[#FF2A3B]/30 text-[#FF2A3B] rounded text-[9px] font-black tracking-wider">AMEX</span>
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          <span className="px-2 py-1 bg-white/5 border border-white/10 text-white rounded text-[9px] font-black tracking-wider">VISA</span>
-                          <span className="px-2 py-1 bg-white/5 border border-white/10 text-white rounded text-[9px] font-black tracking-wider">MASTERCARD</span>
-                          <span className="px-2 py-1 bg-[#00A499]/10 border border-[#00A499]/30 text-[#00A499] rounded text-[9px] font-black tracking-wider">YAPE</span>
-                        </div>
-                      </div>
 
-                      <motion.button
-                        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                        disabled={isProcessing} onClick={handleCheckoutSubmit}
-                        className="relative overflow-hidden w-full flex items-center justify-center gap-2 bg-[#009EE3] hover:bg-[#0089C4] text-white font-black text-sm tracking-widest uppercase py-5 rounded-2xl shadow-[0_0_20px_rgba(0,158,227,0.3)] disabled:opacity-50 transition-all"
-                      >
-                        {isProcessing ? <><Loader2 className="w-5 h-5 animate-spin" /> Conectando a Caja...</> : <><Lock size={18} /> Proceder al Pago</>}
-                      </motion.button>
-                    </div>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          disabled={isProcessing} onClick={handleCheckoutSubmit}
+                          className="relative overflow-hidden w-full flex items-center justify-center gap-2 bg-[#FF2A3B] hover:bg-[#D61F2C] text-white font-black text-sm tracking-widest uppercase py-5 rounded-2xl shadow-[0_0_20px_rgba(255,42,59,0.3)] disabled:opacity-50 transition-all"
+                        >
+                          {isProcessing ? <><Loader2 className="w-5 h-5 animate-spin" /> Conectando a Caja...</> : <><Lock size={18} /> Proceder al Pago</>}
+                        </motion.button>
+                      </div>
+                    )}
+
                   </motion.div>
                 )}
               </AnimatePresence>

@@ -40,10 +40,7 @@ export default function CmsPage() {
   const [deletingElement, setDeletingElement] = useState(false);
   const [uploadingBentoCaja1, setUploadingBentoCaja1] = useState(false);
   const [uploadingBentoTop, setUploadingBentoTop] = useState(false);
-  
-  // === NUEVO ESTADO PARA EL MODAL DE DESVINCULAR ===
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
-
   const [horarios, setHorarios] = useState([{ dias: 'Lun - Dom', apertura: '12:00', cierre: '23:00' }]);
 
   const [config, setConfig] = useState({
@@ -54,7 +51,7 @@ export default function CmsPage() {
     bentoCtaImagenTop: '', bentoCtaEtiquetaTop: '100% ARTESANAL', bentoCtaTituloTop: 'El verdadero sabor al carbón.',
     bentoCtaEscalaCaja1: 1.00, bentoCtaEscalaCaja2: 1.00,
     limiteImagenesCarrusel: 7 as number | string,
-    mpPublicKey: '', mpAccessToken: ''
+    izipayShopId: '', izipayApiKey: '', izipayPublicKey: '', izipayHmacKey: ''
   });
 
   const [imagenes, setImagenes] = useState<any[]>([]);
@@ -62,7 +59,6 @@ export default function CmsPage() {
   const [dragActive, setDragActive] = useState(false);
   const [isTipoLogoOpen, setIsTipoLogoOpen] = useState(false);
   const [isTipoCaja1Open, setIsTipoCaja1Open] = useState(false);
-  
   const [uploadingGaleria, setUploadingGaleria] = useState<number | null>(null);
   const [targetPosicion, setTargetPosicion] = useState<number | null>(null); 
 
@@ -114,8 +110,10 @@ export default function CmsPage() {
           bentoCtaEscalaCaja1: cData.bentoCtaEscalaCaja1 ? Number(cData.bentoCtaEscalaCaja1) : 1.00,
           bentoCtaEscalaCaja2: cData.bentoCtaEscalaCaja2 ? Number(cData.bentoCtaEscalaCaja2) : 1.00,
           limiteImagenesCarrusel: cData.limiteImagenesCarrusel || 7,
-          mpPublicKey: cData.mpPublicKey || '',
-          mpAccessToken: '' // Siempre vacío por seguridad al cargar
+          izipayShopId: cData.izipayShopId || '',
+          izipayPublicKey: cData.izipayPublicKey || '',
+          izipayApiKey: '',
+          izipayHmacKey: ''
         });
 
         if (cData.horarioAtencion) {
@@ -162,7 +160,7 @@ export default function CmsPage() {
         horarioAtencion: JSON.stringify(horarios)
       });
       
-      setConfig(prev => ({ ...prev, mpAccessToken: '' }));
+      setConfig(prev => ({ ...prev, izipayApiKey: '', izipayHmacKey: '' }));
       sileo.success({ title: 'Configuración web guardada con éxito' });
     } catch (error: any) { sileo.error({ title: error.response?.data?.message || 'Error al guardar' }); } 
     finally { setSavingConfig(false); }
@@ -250,7 +248,6 @@ export default function CmsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pr-4 pb-8">
             <form onSubmit={handleGuardarConfig} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-fit flex flex-col gap-0">
               
-              {/* IDENTIDAD DE MARCA */}
               <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-2.5 bg-gray-50/50">
                 <Palette className="text-orange-500" size={18} strokeWidth={2.5} />
                 <div><h3 className="text-sm font-black text-gray-900 tracking-tight">Identidad de Marca y Colores</h3></div>
@@ -333,7 +330,6 @@ export default function CmsPage() {
                 </div>
               </div>
 
-              {/* BENTO CTA */}
               <div className="px-6 py-5 border-y border-gray-100 flex items-center gap-2.5 bg-gray-50/50">
                 <MousePointerClick className="text-orange-500" size={18} strokeWidth={2.5} />
                 <div><h3 className="text-sm font-black text-gray-900 tracking-tight">Llamado a la Acción (Bento Inferior)</h3></div>
@@ -432,7 +428,6 @@ export default function CmsPage() {
                 </div>
               </div>
 
-              {/* DATOS DE CONTACTO Y HORARIOS DIVIDIDOS */}
               <div className="px-6 py-5 border-y border-gray-100 flex items-center gap-2.5 bg-gray-50/50">
                 <LayoutTemplate className="text-orange-500" size={18} strokeWidth={2.5} />
                 <div><h3 className="text-sm font-black text-gray-900 tracking-tight">Contacto y Horarios Múltiples</h3></div>
@@ -453,7 +448,6 @@ export default function CmsPage() {
                   <input type="email" value={config.correoContacto} onChange={e => setConfig({...config, correoContacto: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-orange-500" placeholder="contacto@rutadelsabor.com" />
                 </div>
                 
-                {/* HORARIOS MÚLTIPLES AVANZADOS */}
                 <div className="pt-4 border-t border-gray-100">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
                     <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1.5"><Clock size={13} /> Días de Apertura</label>
@@ -501,37 +495,49 @@ export default function CmsPage() {
                 </div>
               </div>
 
-              {/* ========================================== */}
-              {/* TARJETA DE PASARELA DE PAGOS               */}
-              {/* ========================================== */}
               <div className="px-6 py-5 border-y border-gray-100 flex items-center gap-2.5 bg-gray-50/50">
                 <CreditCard className="text-orange-500" size={18} strokeWidth={2.5} />
-                <div><h3 className="text-sm font-black text-gray-900 tracking-tight">Pasarela de Pagos (Mercado Pago)</h3></div>
+                <div><h3 className="text-sm font-black text-gray-900 tracking-tight">Pasarela de Pagos (Izipay)</h3></div>
               </div>
               <div className="p-6 space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">
-                      Public Key
-                    </label>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">Shop ID (Usuario)</label>
                     <input 
                       type="text" 
-                      value={config.mpPublicKey || ''} 
-                      onChange={e => setConfig({...config, mpPublicKey: e.target.value})}
-                      placeholder="APP_USR-..."
+                      value={config.izipayShopId || ''} 
+                      onChange={e => setConfig({...config, izipayShopId: e.target.value})}
+                      placeholder="Ej. 69876357"
                       className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-orange-500"
                     />
                   </div>
-                  
                   <div>
-                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">
-                      Access Token (Clave Secreta)
-                    </label>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">API Key (Test Password)</label>
                     <input 
                       type="password" 
-                      value={config.mpAccessToken || ''} 
-                      onChange={e => setConfig({...config, mpAccessToken: e.target.value})}
-                      placeholder="Pegar nuevo token..."
+                      value={config.izipayApiKey || ''} 
+                      onChange={e => setConfig({...config, izipayApiKey: e.target.value})}
+                      placeholder="testpassword_..."
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-orange-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">Public Key</label>
+                    <input 
+                      type="text" 
+                      value={config.izipayPublicKey || ''} 
+                      onChange={e => setConfig({...config, izipayPublicKey: e.target.value})}
+                      placeholder="...testpublickey_..."
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-orange-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2">HMAC Key</label>
+                    <input 
+                      type="password" 
+                      value={config.izipayHmacKey || ''} 
+                      onChange={e => setConfig({...config, izipayHmacKey: e.target.value})}
+                      placeholder="Clave SHA-256..."
                       className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm font-bold text-gray-900 outline-none focus:ring-2 focus:ring-orange-500 font-mono"
                     />
                   </div>
@@ -539,18 +545,19 @@ export default function CmsPage() {
                 
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
                   <p className="text-[11px] font-medium text-gray-400 leading-relaxed max-w-2xl">
-                    * Por seguridad, el Access Token está oculto en este panel. Si ya configuraste uno antes y solo deseas actualizar otros datos, no necesitas volver a escribirlo.
+                    * Por seguridad, las contraseñas están ocultas al recargar el panel. Si ya configuraste las llaves antes y solo deseas actualizar otros datos de la web, déjalas en blanco.
                   </p>
                   
-                  {config.mpPublicKey && (
-                    <button 
-                      type="button" 
-                      onClick={() => setShowDisconnectModal(true)}
-                      className="text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-lg transition-colors shrink-0"
-                    >
-                      Desvincular cuenta
-                    </button>
-                  )}
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                        setConfig({...config, izipayShopId: 'ELIMINAR_CREDENCIALES'});
+                        sileo.info({title: 'Listo. Haz clic en "Guardar Información" para aplicar.'});
+                    }}
+                    className="text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-lg transition-colors shrink-0"
+                  >
+                    Desvincular cuenta
+                  </button>
                 </div>
               </div>
 
@@ -561,9 +568,7 @@ export default function CmsPage() {
               </div>
             </form>
 
-            {/* COLUMNA DE VISTAS PREVIAS */}
             <div className="flex flex-col gap-8">
-              {/* VISTA PREVIA HERO */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-fit flex flex-col">
                 <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-2.5 bg-gray-50/50">
                   <Monitor className="text-orange-500" size={18} strokeWidth={2.5} />
@@ -599,7 +604,6 @@ export default function CmsPage() {
                 </div>
               </div>
 
-              {/* VISTA PREVIA BENTO CTA */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-fit flex flex-col">
                 <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-2.5 bg-gray-50/50">
                   <Monitor className="text-orange-500" size={18} strokeWidth={2.5} />
@@ -644,8 +648,7 @@ export default function CmsPage() {
                   </div>
                 </div>
               </div>
-              
-              {/* CARRUSEL Y LÍMITE REPARADO CON LIMITEMAX */}
+
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-fit flex flex-col">
                 <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                   <div className="flex items-center gap-2.5">
@@ -668,7 +671,6 @@ export default function CmsPage() {
                 </div>
                 <div className="p-6 space-y-6">
                   
-                  {/* AQUÍ SE USA LA VARIABLE limiteMax CORRECTAMENTE */}
                   {imagenes.length >= limiteMax ? (
                     <div className="w-full h-40 rounded-2xl border-2 border-dashed border-rose-300 bg-rose-50 flex flex-col items-center justify-center text-rose-500 p-4 text-center">
                       <ImageIcon className="w-10 h-10 mb-2 opacity-50" />
@@ -695,7 +697,7 @@ export default function CmsPage() {
                       <div key={img.id} className="relative group rounded-xl overflow-hidden border border-gray-200 aspect-video shadow-sm">
                         <img src={img.imagenUrl} alt="Carrusel" className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <button onClick={() => handleEliminarImagen(img.id)} className="bg-rose-500 hover:bg-rose-600 text-white p-2.5 rounded-full active:scale-95 transition-transform"><Trash2 size={16} strokeWidth={2.5} /></button>
+                          <button type="button" onClick={() => handleEliminarImagen(img.id)} className="bg-rose-500 hover:bg-rose-600 text-white p-2.5 rounded-full active:scale-95 transition-transform"><Trash2 size={16} strokeWidth={2.5} /></button>
                         </div>
                       </div>
                     ))}
@@ -703,7 +705,6 @@ export default function CmsPage() {
                 </div>
               </div>
               
-              {/* GALERÍA */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-fit flex flex-col mt-8 xl:col-span-2">
                 <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                   <div className="flex items-center gap-2.5">
@@ -751,9 +752,6 @@ export default function CmsPage() {
         )}
       </div>
 
-      {/* ========================================== */}
-      {/* MODAL ANIMADO PARA DESVINCULAR MERCADO PAGO */}
-      {/* ========================================== */}
       <AnimatePresence>
         {showDisconnectModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -774,21 +772,23 @@ export default function CmsPage() {
                 <AlertTriangle size={32} strokeWidth={2.5} />
               </div>
               <h3 className="text-xl font-black text-gray-900 tracking-tight mb-2">
-                ¿Desvincular Mercado Pago?
+                ¿Desvincular Izipay?
               </h3>
               <p className="text-sm font-medium text-gray-500 mb-8 leading-relaxed">
                 Si eliminas tus credenciales, tu tienda <strong className="text-gray-900">ya no podrá recibir pagos en línea</strong> de tus clientes. Volverás al modo de pruebas.
               </p>
               <div className="flex w-full gap-3">
                 <button 
+                  type="button" 
                   onClick={() => setShowDisconnectModal(false)}
                   className="flex-1 px-4 py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl font-bold text-sm transition-colors"
                 >
                   Cancelar
                 </button>
                 <button 
+                  type="button" 
                   onClick={() => {
-                    setConfig({...config, mpPublicKey: '', mpAccessToken: 'ELIMINAR_CREDENCIALES'});
+                    setConfig({...config, izipayShopId: 'ELIMINAR_CREDENCIALES'});
                     setShowDisconnectModal(false);
                     sileo.info({title: 'Listo. Haz clic en "Guardar Información" para aplicar.'});
                   }}
