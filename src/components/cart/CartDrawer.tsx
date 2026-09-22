@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Plus, ShoppingBag, Trash2, Lock, Loader2, ShieldCheck, ArrowLeft, MapPin, Store, Phone, Map, UserCircle, Info,  } from 'lucide-react';
+import { X, Minus, Plus, ShoppingBag, Trash2, Lock, Loader2, ShieldCheck, ArrowLeft, MapPin, Store, Phone, Map, UserCircle, Info } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
@@ -13,6 +13,7 @@ export const CartDrawer = () => {
   const [view, setView] = useState<'cart' | 'checkout'>('cart');
   const [showMapHelp, setShowMapHelp] = useState(false);
   
+  // Estado para Izipay
   const [formToken, setFormToken] = useState<string>('');
 
   const [orderData, setOrderData] = useState({
@@ -85,24 +86,28 @@ export const CartDrawer = () => {
       };
 
       const response = await procesarCheckoutPublico(payload);
+      
+      // Guardamos el token que viene desde Java
       setFormToken(response.urlPasarela || response.preferenciaPagoUrl); 
       setIsProcessing(false);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al procesar el pago.');
+      setError(err.response?.data?.message || 'Error al procesar el pedido.');
       setIsProcessing(false);
     }
   };
 
- useEffect(() => {
+  // Efecto que carga Izipay cuando tenemos un formToken
+  useEffect(() => {
     if (formToken) {
-      const initIzipay = async () => {
+      const loadIzipay = async () => {
         try {
+          // Cargamos la librería con la URL Global y la Public Key Oficial de Demostración
           // @ts-ignore
-          const { KR } = await KRGlue.loadLibrary('https://static.micuentaweb.pe', '69876357:testpublickey_D8kP2sL2uP8xS1gS1O1eFjPjQ0bS1wZ0');
+          const { KR } = await KRGlue.loadLibrary('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
           
           await KR.setFormConfig({ 
             formToken: formToken, 
-            'kr-language': 'es-PE' 
+            'kr-language': 'es-PE'
           });
           
           await KR.onSubmit((paymentData: any) => {
@@ -111,7 +116,7 @@ export const CartDrawer = () => {
             setView('cart');
             setFormToken('');
             toggleCart();
-            return false; 
+            return false;
           });
           
           const { result } = await KR.addForm('#myPaymentForm');
@@ -119,11 +124,11 @@ export const CartDrawer = () => {
 
         } catch (error) {
           console.error("Error al cargar Izipay", error);
-          setError("Error al conectar con la pasarela de pagos.");
+          setError("Error al renderizar la tarjeta de pago.");
         }
       };
 
-      initIzipay();
+      loadIzipay();
     }
   }, [formToken]);
 
@@ -351,7 +356,6 @@ export const CartDrawer = () => {
                       ) : (
                         <div className="bg-white p-6 rounded-2xl w-full flex flex-col items-center">
                           <h3 className="font-black text-gray-900 text-center mb-6">Ingresa los datos de tu tarjeta</h3>
-                          {/* DIV OBLIGATORIO PARA IZIPAY */}
                           <div id="myPaymentForm"></div>
                         </div>
                       )}
