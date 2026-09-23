@@ -5,7 +5,6 @@ import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
 
-// IMPORTACIÓN CORREGIDA (La que nos dio la victoria absoluta antes)
 import KRGlue from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
@@ -15,7 +14,6 @@ export const CartDrawer = () => {
   const [view, setView] = useState<'cart' | 'checkout'>('cart');
   const [showMapHelp, setShowMapHelp] = useState(false);
   
-  // Estados para Izipay y UX
   const [formToken, setFormToken] = useState<string>('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
@@ -90,7 +88,6 @@ export const CartDrawer = () => {
     if (formToken && !paymentSuccess) {
       const loadIzipay = async () => {
         try {
-          // Extraemos la función manteniendo el contexto
           let glue = KRGlue as any;
           if (!glue.loadLibrary && glue.default && typeof glue.default.loadLibrary === 'function') {
             glue = glue.default;
@@ -105,24 +102,25 @@ export const CartDrawer = () => {
           
           await KR.onSubmit((paymentData: any) => {
             console.log("¡Pago exitoso!", paymentData);
-            
-            // 1. Mostrar pantalla de éxito
             setPaymentSuccess(true);
             clearCart();
-            
-            // 2. Esperar 3 segundos para que el cliente lea el mensaje de éxito antes de cerrar
             setTimeout(() => {
               setPaymentSuccess(false);
               setView('cart');
               setFormToken('');
               toggleCart();
             }, 3000);
-            
             return false;
           });
           
-          const { result } = await KR.addForm('#myPaymentForm');
-          await KR.showForm(result.formId);
+          // SOLUCIÓN AL DOM: Esperamos activamente a que la animación termine y el div exista
+          const checkExist = setInterval(async () => {
+            if (document.getElementById('myPaymentForm')) {
+              clearInterval(checkExist); // Detenemos la búsqueda
+              const { result } = await KR.addForm('#myPaymentForm');
+              await KR.showForm(result.formId);
+            }
+          }, 100); // Revisa cada 100ms hasta encontrarlo
 
         } catch (error) {
           console.error("Error al cargar Izipay:", error);
@@ -159,7 +157,6 @@ export const CartDrawer = () => {
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             className="fixed top-0 right-0 h-full w-full max-w-md bg-background border-l border-white/5 z-[101] flex flex-col shadow-2xl"
           >
-            {/* CABECERA (Se oculta durante el pago exitoso o el formulario de Izipay) */}
             {!formToken && !paymentSuccess && (
               <div className="flex justify-between items-center px-6 pt-6 pb-5 border-b border-white/5 bg-background z-10 shrink-0">
                 {view === 'cart' ? (
@@ -376,7 +373,6 @@ export const CartDrawer = () => {
                 {formToken && !paymentSuccess && (
                   <motion.div key="izipay-view" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col bg-gray-50 z-20">
                     
-                    {/* Header Pestaña Pago */}
                     <div className="bg-[#111] border-b border-gray-800 p-6 flex flex-col items-center justify-center relative shadow-lg shrink-0">
                       <button onClick={() => setFormToken('')} className="absolute left-6 top-6 text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-full">
                         <ArrowLeft size={20} />
@@ -390,17 +386,14 @@ export const CartDrawer = () => {
                       <p className="text-3xl font-black text-white leading-none tracking-tighter">S/ {total.toFixed(2)}</p>
                     </div>
 
-                    {/* Contenedor Elegante del Formulario */}
                     <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start custom-scrollbar">
                       
-                      {/* Insignias de Confianza */}
                       <div className="flex items-center justify-center gap-3 mb-6 w-full max-w-sm">
                         <div className="bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 text-[#1434CB] font-black text-xs italic tracking-tighter">VISA</div>
                         <div className="bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 text-[#EB001B] font-black text-xs italic tracking-tighter">Mastercard</div>
                         <div className="bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 text-[#27AEE3] font-black text-xs italic tracking-tighter">AMEX</div>
                       </div>
 
-                      {/* Importaciones CSS de Lyra */}
                       <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic-reset.css" />
                       <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic.css" />
                       
@@ -434,7 +427,6 @@ export const CartDrawer = () => {
                       Hemos recibido tu orden correctamente. Nuestro equipo ya está preparándola.
                     </motion.p>
 
-                    {/* Barra de progreso de cierre */}
                     <motion.div initial={{ width: 0 }} animate={{ width: "100%" }} transition={{ duration: 3, ease: "linear" }} className="w-48 h-1 bg-emerald-500/50 mt-10 rounded-full" />
                   </motion.div>
                 )}
