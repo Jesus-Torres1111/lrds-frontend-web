@@ -5,7 +5,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
 
-// Importación oficial recomendada por Lyra/Izipay
+// Importación oficial
 import KRGlue from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
@@ -103,11 +103,14 @@ export const CartDrawer = () => {
     if (formToken) {
       const loadIzipay = async () => {
         try {
-          // Asignamos KRGlue a 'any' para que TypeScript no moleste, usando la importación oficial
-          const glue = KRGlue as any;
-          
-          // Cargamos la librería con la URL Global y la Public Key de Demostración
-          const { KR } = await glue.loadLibrary('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
+          // TRUCO DEFINITIVO PARA VITE: Buscar la función donde sea que Vite la haya escondido
+          let lib = KRGlue as any;
+          if (lib.default && typeof lib.default.loadLibrary === 'function') {
+            lib = lib.default;
+          }
+
+          // Cargamos la librería con la URL Global y la Public Key Oficial de Demostración
+          const { KR } = await lib.loadLibrary('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
           
           await KR.setFormConfig({ 
             formToken: formToken, 
@@ -127,7 +130,7 @@ export const CartDrawer = () => {
           await KR.showForm(result.formId);
 
         } catch (error) {
-          console.error("Error al cargar Izipay:", error);
+          console.error("Error al cargar Izipay", error);
           setError("Error al renderizar la tarjeta de pago.");
         }
       };
