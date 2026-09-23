@@ -5,8 +5,8 @@ import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
 
-// Importación oficial
-import KRGlue from '@lyracom/embedded-form-glue';
+// Importación a prueba de fallos para Vite
+import * as IzipayLibrary from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, clearCart, getTotal } = useCartStore() as any;
@@ -103,14 +103,14 @@ export const CartDrawer = () => {
     if (formToken) {
       const loadIzipay = async () => {
         try {
-          // TRUCO DEFINITIVO PARA VITE: Buscar la función donde sea que Vite la haya escondido
-          let lib = KRGlue as any;
-          if (lib.default && typeof lib.default.loadLibrary === 'function') {
-            lib = lib.default;
+          const loadLib = (IzipayLibrary as any).loadLibrary || (IzipayLibrary as any).default?.loadLibrary || (IzipayLibrary as any).default;
+          
+          if (!loadLib || typeof loadLib !== 'function') {
+            throw new Error("No se pudo extraer loadLibrary del paquete de Izipay.");
           }
 
           // Cargamos la librería con la URL Global y la Public Key Oficial de Demostración
-          const { KR } = await lib.loadLibrary('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
+          const { KR } = await loadLib('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
           
           await KR.setFormConfig({ 
             formToken: formToken, 
@@ -127,10 +127,12 @@ export const CartDrawer = () => {
           });
           
           const { result } = await KR.addForm('#myPaymentForm');
+          
+          // En modo Pop-in, esto abre la ventana emergente automáticamente
           await KR.showForm(result.formId);
 
         } catch (error) {
-          console.error("Error al cargar Izipay", error);
+          console.error("Error al cargar Izipay:", error);
           setError("Error al renderizar la tarjeta de pago.");
         }
       };
@@ -361,9 +363,15 @@ export const CartDrawer = () => {
                           </div>
                         </>
                       ) : (
-                        <div className="bg-white p-6 rounded-2xl w-full flex flex-col items-center">
-                          <h3 className="font-black text-gray-900 text-center mb-6">Ingresa los datos de tu tarjeta</h3>
-                          <div id="myPaymentForm"></div>
+                        <div className="flex flex-col items-center justify-center min-h-[400px]">
+                          {/* 1. CARGAMOS LOS ESTILOS OFICIALES DE IZIPAY */}
+                          <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic-reset.css" />
+                          <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic.css" />
+                          
+                          {/* 2. CAMBIAMOS A MODO POP-IN */}
+                          <div className="kr-popin" id="myPaymentForm"></div>
+                          
+                          <p className="text-gray-400 text-sm font-bold mt-4 animate-pulse">Abriendo ventana de pago seguro...</p>
                         </div>
                       )}
 
