@@ -5,7 +5,8 @@ import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
 
-import * as IzipayLibrary from '@lyracom/embedded-form-glue';
+// IMPORTACIÓN CORREGIDA (La que nos dio la victoria absoluta antes)
+import KRGlue from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, clearCart, getTotal } = useCartStore() as any;
@@ -89,7 +90,8 @@ export const CartDrawer = () => {
     if (formToken && !paymentSuccess) {
       const loadIzipay = async () => {
         try {
-          let glue = IzipayLibrary as any;
+          // Extraemos la función manteniendo el contexto
+          let glue = KRGlue as any;
           if (!glue.loadLibrary && glue.default && typeof glue.default.loadLibrary === 'function') {
             glue = glue.default;
           }
