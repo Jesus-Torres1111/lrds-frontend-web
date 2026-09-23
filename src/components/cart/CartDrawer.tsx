@@ -4,7 +4,8 @@ import { X, Minus, Plus, ShoppingBag, Trash2, Lock, Loader2, ShieldCheck, ArrowL
 import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
-import KRGlue from '@lyracom/embedded-form-glue';
+
+import * as IzipayLibrary from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, clearCart, getTotal } = useCartStore() as any;
@@ -13,7 +14,6 @@ export const CartDrawer = () => {
   const [view, setView] = useState<'cart' | 'checkout'>('cart');
   const [showMapHelp, setShowMapHelp] = useState(false);
   
-  // Estado para Izipay
   const [formToken, setFormToken] = useState<string>('');
 
   const [orderData, setOrderData] = useState({
@@ -87,7 +87,6 @@ export const CartDrawer = () => {
 
       const response = await procesarCheckoutPublico(payload);
       
-      // Guardamos el token que viene desde Java
       setFormToken(response.urlPasarela || response.preferenciaPagoUrl); 
       setIsProcessing(false);
     } catch (err: any) {
@@ -96,14 +95,17 @@ export const CartDrawer = () => {
     }
   };
 
-  // Efecto que carga Izipay cuando tenemos un formToken
   useEffect(() => {
     if (formToken) {
       const loadIzipay = async () => {
         try {
-          // Cargamos la librería con la URL Global y la Public Key Oficial de Demostración
-          // @ts-ignore
-          const { KR } = await KRGlue.loadLibrary('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
+          const loadLib = (IzipayLibrary as any).loadLibrary || (IzipayLibrary as any).default?.loadLibrary || (IzipayLibrary as any).default;
+          
+          if (!loadLib || typeof loadLib !== 'function') {
+            throw new Error("No se pudo extraer loadLibrary del paquete de Izipay.");
+          }
+
+          const { KR } = await loadLib('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
           
           await KR.setFormConfig({ 
             formToken: formToken, 
@@ -116,15 +118,15 @@ export const CartDrawer = () => {
             setView('cart');
             setFormToken('');
             toggleCart();
-            return false;
+            return false; 
           });
           
           const { result } = await KR.addForm('#myPaymentForm');
           await KR.showForm(result.formId);
 
         } catch (error) {
-          console.error("Error al cargar Izipay", error);
-          setError("Error al renderizar la tarjeta de pago.");
+          console.error("Error crítico al cargar Izipay:", error);
+          setError("No se pudo cargar el formulario de pago seguro.");
         }
       };
 
