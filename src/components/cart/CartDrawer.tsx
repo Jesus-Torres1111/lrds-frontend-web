@@ -127,8 +127,6 @@ export const CartDrawer = () => {
           });
           
           const { result } = await KR.addForm('#myPaymentForm');
-          
-          // En modo Pop-in, esto abre la ventana emergente automáticamente
           await KR.showForm(result.formId);
 
         } catch (error) {
@@ -363,15 +361,15 @@ export const CartDrawer = () => {
                           </div>
                         </>
                       ) : (
-                        <div className="flex flex-col items-center justify-center min-h-[400px]">
-                          {/* 1. CARGAMOS LOS ESTILOS OFICIALES DE IZIPAY */}
+                        <div className="bg-white p-2 sm:p-6 rounded-2xl w-full flex flex-col items-center min-h-[400px]">
+                          <h3 className="font-black text-gray-900 text-center mb-6">Paga de forma segura</h3>
+                          
+                          {/* 1. CARGAMOS LOS ESTILOS OFICIALES DE IZIPAY (Obligatorio) */}
                           <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic-reset.css" />
                           <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic.css" />
                           
-                          {/* 2. CAMBIAMOS A MODO POP-IN */}
-                          <div className="kr-popin" id="myPaymentForm"></div>
-                          
-                          <p className="text-gray-400 text-sm font-bold mt-4 animate-pulse">Abriendo ventana de pago seguro...</p>
+                          {/* 2. AGREGAMOS LA CLASE kr-embedded PARA QUE SE VEA EL DISEÑO OFICIAL */}
+                          <div className="kr-embedded" id="myPaymentForm"></div>
                         </div>
                       )}
 
