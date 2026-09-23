@@ -113,14 +113,19 @@ export const CartDrawer = () => {
             return false;
           });
           
-          // SOLUCIÓN AL DOM: Esperamos activamente a que la animación termine y el div exista
-          const checkExist = setInterval(async () => {
-            if (document.getElementById('myPaymentForm')) {
-              clearInterval(checkExist); // Detenemos la búsqueda
-              const { result } = await KR.addForm('#myPaymentForm');
-              await KR.showForm(result.formId);
-            }
-          }, 100); // Revisa cada 100ms hasta encontrarlo
+          const waitForForm = () => new Promise((resolve) => {
+            const check = setInterval(() => {
+              if (document.getElementById('myPaymentForm')) {
+                clearInterval(check);
+                resolve(true);
+              }
+            }, 50); 
+          });
+
+          await waitForForm();
+
+          const { result } = await KR.addForm('#myPaymentForm');
+          await KR.showForm(result.formId);
 
         } catch (error) {
           console.error("Error al cargar Izipay:", error);
@@ -157,6 +162,7 @@ export const CartDrawer = () => {
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 250 }}
             className="fixed top-0 right-0 h-full w-full max-w-md bg-background border-l border-white/5 z-[101] flex flex-col shadow-2xl"
           >
+            {/* CABECERA */}
             {!formToken && !paymentSuccess && (
               <div className="flex justify-between items-center px-6 pt-6 pb-5 border-b border-white/5 bg-background z-10 shrink-0">
                 {view === 'cart' ? (
@@ -183,7 +189,7 @@ export const CartDrawer = () => {
             <div className="flex-1 overflow-y-auto scrollbar-hide relative flex flex-col">
               <AnimatePresence mode="wait">
                 
-                {/* === VISTA 1: CARRITO === */}
+                {/* VISTA 1: CARRITO */}
                 {view === 'cart' && !formToken && !paymentSuccess && (
                   <motion.div key="cart-view" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="h-full flex flex-col">
                     <div className="flex-1 px-6 py-5 space-y-3">
@@ -238,7 +244,7 @@ export const CartDrawer = () => {
                   </motion.div>
                 )}
 
-                {/* === VISTA 2: FORMULARIO DE DATOS === */}
+                {/* VISTA 2: CHECKOUT */}
                 {view === 'checkout' && !formToken && !paymentSuccess && (
                   <motion.div key="checkout-view" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="h-full flex flex-col">
                     <div className="flex-1 px-6 py-5 space-y-6">
@@ -369,11 +375,11 @@ export const CartDrawer = () => {
                   </motion.div>
                 )}
 
-                {/* === VISTA 3: PANTALLA DE PAGO DE IZIPAY === */}
+                {/* === VISTA 3: IZIPAY FORMULARIO OFICIAL SEGURO === */}
                 {formToken && !paymentSuccess && (
-                  <motion.div key="izipay-view" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col bg-gray-50 z-20">
+                  <motion.div key="izipay-view" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col bg-gray-50 z-20 w-full">
                     
-                    <div className="bg-[#111] border-b border-gray-800 p-6 flex flex-col items-center justify-center relative shadow-lg shrink-0">
+                    <div className="bg-[#111] border-b border-gray-800 p-6 flex flex-col items-center justify-center relative shadow-lg shrink-0 w-full">
                       <button onClick={() => setFormToken('')} className="absolute left-6 top-6 text-gray-400 hover:text-white transition-colors bg-white/5 p-2 rounded-full">
                         <ArrowLeft size={20} />
                       </button>
@@ -386,7 +392,7 @@ export const CartDrawer = () => {
                       <p className="text-3xl font-black text-white leading-none tracking-tighter">S/ {total.toFixed(2)}</p>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start custom-scrollbar">
+                    <div className="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-start custom-scrollbar w-full">
                       
                       <div className="flex items-center justify-center gap-3 mb-6 w-full max-w-sm">
                         <div className="bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 text-[#1434CB] font-black text-xs italic tracking-tighter">VISA</div>
@@ -394,22 +400,72 @@ export const CartDrawer = () => {
                         <div className="bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 text-[#27AEE3] font-black text-xs italic tracking-tighter">AMEX</div>
                       </div>
 
+                      {/* CSS MÁGICO SOLO PARA EL BOTÓN (No tocamos los inputs) */}
+                      <style dangerouslySetInnerHTML={{__html: `
+                        #myPaymentForm {
+                          display: flex !important;
+                          justify-content: center !important;
+                          width: 100% !important;
+                        }
+                        
+                        .kr-embedded {
+                          width: 100% !important;
+                          max-width: 100% !important;
+                        }
+
+                        /* Diseño del Botón y Centrado del texto */
+                        .kr-payment-button {
+                          background-color: #FF2A3B !important;
+                          color: #ffffff !important;
+                          border-radius: 8px !important;
+                          font-weight: 800 !important;
+                          font-size: 16px !important;
+                          height: 50px !important;
+                          text-transform: uppercase !important;
+                          margin-top: 15px !important;
+                          transition: all 0.2s ease !important;
+                          width: 100% !important;
+                          
+                          /* CENTRADO PERFECTO DEL TEXTO */
+                          display: flex !important;
+                          justify-content: center !important;
+                          align-items: center !important;
+                          text-align: center !important;
+                          padding: 0 !important;
+                        }
+                        
+                        .kr-payment-button:hover {
+                          background-color: #D61F2C !important;
+                          transform: scale(0.98);
+                        }
+
+                        /* Por si Izipay mete el texto en un span interno */
+                        .kr-payment-button span {
+                          text-align: center !important;
+                          margin: 0 auto !important;
+                          width: 100% !important;
+                          display: block !important;
+                        }
+                      `}} />
+
+                      {/* Importaciones CSS Nativas de Lyra (Obligatorias para poder escribir) */}
                       <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic-reset.css" />
                       <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic.css" />
-                      
+
                       <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-200">
-                        <div className="kr-embedded" id="myPaymentForm"></div>
+                        {/* Contenedor Limpio */}
+                        <div id="myPaymentForm" className="w-full"></div>
                       </div>
 
-                      <div className="mt-8 text-center flex items-center justify-center gap-2 text-gray-400">
-                        <ShieldCheck size={16} className="text-emerald-500" />
+                      <div className="mt-8 text-center flex items-center justify-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full font-medium">
+                        <ShieldCheck size={16} />
                         <span className="text-xs font-bold">Tus datos están encriptados y seguros.</span>
                       </div>
                     </div>
                   </motion.div>
                 )}
 
-                {/* === VISTA 4: PANTALLA DE ÉXITO === */}
+                {/* VISTA 4: PANTALLA DE ÉXITO */}
                 {paymentSuccess && (
                   <motion.div key="success-view" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="h-full flex flex-col items-center justify-center bg-background p-8 text-center z-30">
                     <motion.div 
