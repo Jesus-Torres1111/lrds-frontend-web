@@ -5,7 +5,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
 
-// Importación oficial del paquete de Lyra/Izipay
+// Importación oficial recomendada
 import KRGlue from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
@@ -103,16 +103,14 @@ export const CartDrawer = () => {
     if (formToken) {
       const loadIzipay = async () => {
         try {
-          // Extraemos la función independientemente de cómo Vite la haya compilado
-          const glue = KRGlue as any;
-          const loadLib = glue.loadLibrary || glue.default?.loadLibrary;
-
-          if (!loadLib) {
-            throw new Error("La librería de Izipay no se importó correctamente.");
+          // Solución al error de "loaded": Mantener el contexto del objeto
+          let glue = KRGlue as any;
+          if (!glue.loadLibrary && glue.default && typeof glue.default.loadLibrary === 'function') {
+            glue = glue.default;
           }
 
-          // Cargamos la librería con la URL Global y la Public Key Oficial de Demostración
-          const { KR } = await loadLib('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
+          // Ejecutamos la función DIRECTAMENTE desde el objeto glue
+          const { KR } = await glue.loadLibrary('https://static.lyra.com', '69876357:testpublickey_DEMOPUBLICKEY95me92597fd28tGD4r5');
           
           await KR.setFormConfig({ 
             formToken: formToken, 
@@ -129,8 +127,6 @@ export const CartDrawer = () => {
           });
           
           const { result } = await KR.addForm('#myPaymentForm');
-          
-          // Abre automáticamente la ventana emergente de Izipay (Pop-in mode)
           await KR.showForm(result.formId);
 
         } catch (error) {
