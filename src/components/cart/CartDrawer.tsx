@@ -5,8 +5,8 @@ import { useCartStore } from '@/store/useCartStore';
 import { useAuthStore } from '@/store/authStore';
 import { procesarCheckoutPublico } from '@/api/public';
 
-// Importación a prueba de fallos para Vite
-import * as IzipayLibrary from '@lyracom/embedded-form-glue';
+// Importación oficial del paquete de Lyra/Izipay
+import KRGlue from '@lyracom/embedded-form-glue';
 
 export const CartDrawer = () => {
   const { items, isCartOpen, toggleCart, removeItem, updateQuantity, clearCart, getTotal } = useCartStore() as any;
@@ -103,10 +103,12 @@ export const CartDrawer = () => {
     if (formToken) {
       const loadIzipay = async () => {
         try {
-          const loadLib = (IzipayLibrary as any).loadLibrary || (IzipayLibrary as any).default?.loadLibrary || (IzipayLibrary as any).default;
-          
-          if (!loadLib || typeof loadLib !== 'function') {
-            throw new Error("No se pudo extraer loadLibrary del paquete de Izipay.");
+          // Extraemos la función independientemente de cómo Vite la haya compilado
+          const glue = KRGlue as any;
+          const loadLib = glue.loadLibrary || glue.default?.loadLibrary;
+
+          if (!loadLib) {
+            throw new Error("La librería de Izipay no se importó correctamente.");
           }
 
           // Cargamos la librería con la URL Global y la Public Key Oficial de Demostración
@@ -127,6 +129,8 @@ export const CartDrawer = () => {
           });
           
           const { result } = await KR.addForm('#myPaymentForm');
+          
+          // Abre automáticamente la ventana emergente de Izipay (Pop-in mode)
           await KR.showForm(result.formId);
 
         } catch (error) {
@@ -361,15 +365,15 @@ export const CartDrawer = () => {
                           </div>
                         </>
                       ) : (
-                        <div className="bg-white p-2 sm:p-6 rounded-2xl w-full flex flex-col items-center min-h-[400px]">
-                          <h3 className="font-black text-gray-900 text-center mb-6">Paga de forma segura</h3>
-                          
-                          {/* 1. CARGAMOS LOS ESTILOS OFICIALES DE IZIPAY (Obligatorio) */}
+                        <div className="flex flex-col items-center justify-center min-h-[400px]">
+                          {/* 1. CARGAMOS LOS ESTILOS OFICIALES PARA EVITAR QUE SE DESORDENEN LOS CAMPOS */}
                           <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic-reset.css" />
                           <link rel="stylesheet" href="https://static.lyra.com/static/js/krypton-client/V4.0/ext/classic.css" />
                           
-                          {/* 2. AGREGAMOS LA CLASE kr-embedded PARA QUE SE VEA EL DISEÑO OFICIAL */}
-                          <div className="kr-embedded" id="myPaymentForm"></div>
+                          {/* 2. CONTENEDOR EN MODO POP-IN (VENTANA EMERGENTE TIPO MERCADOPAGO) */}
+                          <div className="kr-popin" id="myPaymentForm"></div>
+                          
+                          <p className="text-gray-400 text-sm font-bold mt-4 animate-pulse">Abriendo ventana de pago seguro...</p>
                         </div>
                       )}
 
