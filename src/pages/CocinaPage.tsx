@@ -350,8 +350,9 @@ export default function CocinaPage() {
         getPedidosActivos()
       ]);
       
-      const activos = dataPedidos
-        .filter(p => p.estadoPedido === 'BORRADOR' || p.estadoPedido === 'RECIBIDO' || p.estadoPedido === 'EN_PREPARACION')
+const activos = dataPedidos
+        // ---> AÑADIDO 'PAGADO' AL FILTRO <---
+        .filter(p => p.estadoPedido === 'BORRADOR' || p.estadoPedido === 'RECIBIDO' || p.estadoPedido === 'EN_PREPARACION' || p.estadoPedido === 'PAGADO')
         .map(p => ({
           ...p,
           minutosTranscurridos: p.minutosTranscurridos < 0 ? 0 : p.minutosTranscurridos
