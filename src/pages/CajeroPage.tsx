@@ -8,7 +8,8 @@ import {
   Store, Plus, Minus, Send, PackageSearch, CalendarDays, ArrowLeft
 } from 'lucide-react';
 import { abrirCaja, cerrarCaja, getCajaActiva, procesarPago, getResumenCaja } from '@/api/caja';
-import { getPedidosActivos, crearDocumentoCobro, listarDocumentosCobro, pagarDocumentoCobro, getHistorialPedidos, getProductos, crearPedido, confirmarPedido } from '@/api/pedidos';
+// IMPORTANTE: Asegúrate de que entregarPedido esté importado aquí
+import { getPedidosActivos, crearDocumentoCobro, listarDocumentosCobro, pagarDocumentoCobro, getHistorialPedidos, getProductos, crearPedido, confirmarPedido, entregarPedido } from '@/api/pedidos';
 import { emitirDocumentoVenta, anularDocumentoVenta, listarPorPedido } from '@/api/documentosVenta';
 import { getMiEmpresa } from '@/api/empresa';
 import { useAuthStore } from '@/store/authStore';
@@ -40,6 +41,9 @@ const THEMES = {
   }
 };
 type ThemeKey = 'light' | 'dark';
+
+// Función para identificar rápidamente si un pedido viene de la pasarela web (Izipay)
+const isWebOrder = (p: any) => p.mozo === 'Web / Delivery' || p.mesa === 'DELIVERY WEB' || p.mesa === 'RECOJO WEB';
 
 const METODOS_INFO: Record<string, { icon: React.ReactNode, label: string, color: string, bg: string }> = {
   'EFECTIVO': { icon: <Banknote size={18} />, label: 'Efectivo', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
@@ -404,6 +408,9 @@ function ModalPago({ pedido, sesionId, empresa, c, theme, onClose, onPagado }: a
   const [confirmDialog, setConfirmDialog] = useState<any>({ isOpen: false });
   const [buscandoAPI, setBuscandoAPI] = useState(false);
 
+  // Verificamos si es un pedido que viene pagado desde la web
+  const isWeb = isWebOrder(pedido);
+
   useEffect(() => {
     if (tipoDoc === 'BOLETA' && numeroDocReceptor.length === 8) {
       buscarClienteExterno('BOLETA', numeroDocReceptor, setRazonSocial, setBuscandoAPI);
@@ -412,6 +419,7 @@ function ModalPago({ pedido, sesionId, empresa, c, theme, onClose, onPagado }: a
     }
   }, [numeroDocReceptor, tipoDoc]);
 
+  // FLUJO NORMAL: Cobro Físico
   const handleConfirmarPago = async (pagos: PagoItem[]) => {
     try {
       await procesarPago(pedido.id, sesionId, pagos);
@@ -427,6 +435,31 @@ function ModalPago({ pedido, sesionId, empresa, c, theme, onClose, onPagado }: a
       imprimirTicketTermico(pedido, doc, empresa);
     } catch (err: any) { 
       sileo.error({ title: 'Atención', description: <span className="text-white">{`Cobro realizado, pero el comprobante falló: ${err.message}`}</span> }); 
+    }
+  };
+
+  // FLUJO WEB: Solo emitir comprobante y despachar (Ya está pagado)
+  const handleConfirmarWeb = async () => {
+    setBuscandoAPI(true);
+    try {
+      const doc = await emitirDocumentoVenta({
+        tipo: tipoDoc, pedidoId: pedido.id,
+        tipoDocumentoReceptor: tipoDoc === 'FACTURA' ? 'RUC' : (tipoDoc === 'BOLETA' && numeroDocReceptor ? 'DNI' : undefined),
+        numeroDocumentoReceptor: tipoDoc !== 'NOTA_VENTA' ? numeroDocReceptor : undefined,
+        razonSocialReceptor: tipoDoc !== 'NOTA_VENTA' ? razonSocial : undefined
+      });
+      setComprobante(doc);
+      
+      // Lo marcamos como ENTREGADO para cerrar su ciclo y sacarlo de "Por Cobrar"
+      await entregarPedido(pedido.id);
+      
+      setExito(true);
+      sileo.success({ title: '¡Comprobante Emitido y Delivery Despachado!' });
+      imprimirTicketTermico(pedido, doc, empresa);
+    } catch (err: any) {
+      sileo.error({ title: 'Atención', description: <span className="text-white">{`Ocurrió un error: ${err.response?.data?.message || err.message}`}</span> });
+    } finally {
+      setBuscandoAPI(false);
     }
   };
 
@@ -455,7 +488,9 @@ function ModalPago({ pedido, sesionId, empresa, c, theme, onClose, onPagado }: a
               <Receipt size={24} />
             </div>
             <div>
-              <h2 className={`${c.textMain} font-black text-2xl tracking-tight`}>Cobrar Orden #{pedido.id}</h2>
+              <h2 className={`${c.textMain} font-black text-2xl tracking-tight`}>
+                {isWeb ? `Despachar Orden #${pedido.id}` : `Cobrar Orden #${pedido.id}`}
+              </h2>
               <p className={`${c.textMuted} font-bold text-sm mt-0.5`}>{pedido.mesa || 'Para Llevar'} • {pedido.items.length} ítems</p>
             </div>
           </div>
@@ -468,8 +503,8 @@ function ModalPago({ pedido, sesionId, empresa, c, theme, onClose, onPagado }: a
               <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-emerald-500/10 rounded-full flex items-center justify-center shadow-inner border border-emerald-500/20 backdrop-blur-md">
                 <CircleCheck size={48} className="text-emerald-500" />
               </div>
-              <h3 className={`text-4xl font-black ${c.textMain} tracking-tight mt-6 mb-2`}>¡Pagado!</h3>
-              <p className={`text-sm font-bold ${c.textMuted} mb-8`}>La cuenta ha sido saldada con éxito.</p>
+              <h3 className={`text-4xl font-black ${c.textMain} tracking-tight mt-6 mb-2`}>¡Completado!</h3>
+              <p className={`text-sm font-bold ${c.textMuted} mb-8`}>La orden ha sido finalizada con éxito.</p>
               
               {comprobante && (
                 <div className={`rounded-2xl border ${c.border} p-6 text-left ${comprobante.estadoEmision === 'ANULADO' ? 'opacity-50' : c.panelBg} shadow-sm mb-8`}>
@@ -561,8 +596,30 @@ function ModalPago({ pedido, sesionId, empresa, c, theme, onClose, onPagado }: a
 
             <div className={`w-full lg:w-7/12 flex flex-col ${c.panelBg}`}>
               <div className="p-8 flex-1 overflow-y-auto custom-scrollbar">
-                <h3 className={`text-xs font-black uppercase tracking-widest ${c.textMuted} mb-6`}>Configuración de Pago</h3>
-                <SelectorPagos total={pedido.total} c={c} onConfirmar={handleConfirmarPago} />
+                {isWeb ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center space-y-4 pt-10">
+                    <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center">
+                       <CircleCheck size={40} className="text-emerald-500" />
+                    </div>
+                    <h3 className="text-2xl font-black text-emerald-500 tracking-tight">Pago Verificado</h3>
+                    <p className={`text-sm font-bold ${c.textMuted} max-w-sm`}>
+                       Este pedido fue pagado exitosamente en línea mediante Izipay. No requiere cobro físico en caja.
+                    </p>
+                    <div className={`w-full p-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 mt-4 flex justify-between items-center shadow-inner`}>
+                      <span className="text-xs font-black uppercase text-emerald-500 tracking-widest">Total Pagado:</span>
+                      <span className="text-3xl font-black text-emerald-500">S/ {pedido.total.toFixed(2)}</span>
+                    </div>
+                    <button onClick={handleConfirmarWeb} disabled={buscandoAPI} className={`w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white mt-8 py-5 rounded-2xl font-black text-base transition-all active:scale-95 flex items-center justify-center gap-2 shadow-xl`}>
+                      {buscandoAPI ? <Loader2 size={20} className="animate-spin" /> : <PackageSearch size={20} />}
+                      {buscandoAPI ? 'Procesando...' : 'Emitir Comprobante y Despachar'}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className={`text-xs font-black uppercase tracking-widest ${c.textMuted} mb-6`}>Configuración de Pago</h3>
+                    <SelectorPagos total={pedido.total} c={c} onConfirmar={handleConfirmarPago} />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -885,19 +942,39 @@ export default function CajeroPage() {
         setSesion(null);
       }
       
+      let entregadosWeb: PedidoActivo[] = [];
+
       if (pedidosRes.status === 'fulfilled') {
-        const porCobrar = pedidosRes.value.filter((p) => p.estadoActual === 'ENTREGADO' || p.estadoActual === 'LISTO' || p.estadoActual === 'RECIBIDO');
+        const activos = pedidosRes.value;
+        
+        // Excluimos los pedidos web que ya fueron despachados (ENTREGADO) de la pestaña "Por Cobrar"
+        const porCobrar = activos.filter((p) => {
+          const web = isWebOrder(p);
+          if (web && p.estadoActual === 'ENTREGADO') return false; 
+          return p.estadoActual === 'ENTREGADO' || p.estadoActual === 'LISTO' || p.estadoActual === 'RECIBIDO';
+        });
         setPedidosEntregados(porCobrar);
+
+        // Guardamos los pedidos web despachados para inyectarlos en el historial
+        entregadosWeb = activos.filter((p) => isWebOrder(p) && p.estadoActual === 'ENTREGADO');
       }
 
       if (historialRes.status === 'fulfilled') {
-        const listaHistorial = historialRes.value.filter((p: any) => p.estadoActual === 'PAGADO' || p.estadoActual === 'ENTREGADO');
+        // Obtenemos el historial normal (Pagados o Cancelados) y le sumamos los "Entregados Web"
+        const listaHistorial = historialRes.value.filter((p: any) => p.estadoActual === 'PAGADO' || p.estadoActual === 'CANCELADO');
+        
+        const historialCombinado = [...listaHistorial];
+        entregadosWeb.forEach(ew => {
+          if (!historialCombinado.some(h => h.id === ew.id)) {
+            historialCombinado.push(ew);
+          }
+        });
         
         const comprobantes = await Promise.all(
-          listaHistorial.map(p => listarPorPedido(p.id).catch(() => []))
+          historialCombinado.map(p => listarPorPedido(p.id).catch(() => []))
         );
         
-        const historialConDocs = listaHistorial.map((p, i) => ({
+        const historialConDocs = historialCombinado.map((p, i) => ({
            ...p,
            documentosVenta: comprobantes[i] || []
         }));
@@ -1128,10 +1205,14 @@ useEffect(() => {
                               <h3 className={`text-3xl font-black tracking-tight mt-1.5 ${c.textMain}`}>{pedido.mesa || 'Llevar'}</h3>
                             </div>
                             <div className="flex flex-col items-end gap-2">
-                              <span className={`bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-wider`}>Listo</span>
-                              <button onClick={() => setPedidoSplit(pedido)} className={`text-xs font-bold ${c.textMuted} hover:text-[#FFC640] transition-colors flex items-center gap-1 mt-2`}>
-                                <Split size={14}/> Dividir
-                              </button>
+                              <span className={`bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase tracking-wider`}>
+                                {pedido.estadoActual === 'RECIBIDO' ? 'Recibido' : pedido.estadoActual === 'EN_PREPARACION' ? 'Preparando' : 'Listo'}
+                              </span>
+                              {!isWebOrder(pedido) && (
+                                <button onClick={() => setPedidoSplit(pedido)} className={`text-xs font-bold ${c.textMuted} hover:text-[#FFC640] transition-colors flex items-center gap-1 mt-2`}>
+                                  <Split size={14}/> Dividir
+                                </button>
+                              )}
                             </div>
                           </div>
                           
@@ -1151,9 +1232,15 @@ useEffect(() => {
                               <span className={`text-[10px] font-black uppercase tracking-widest ${c.textMuted}`}>Monto a Cobrar</span>
                               <span className="text-4xl font-black text-[#FFC640] tracking-tight leading-none">S/ {pedido.total.toFixed(2)}</span>
                             </div>
-                            <button onClick={() => setPedidoACobrar(pedido)} className={`w-full ${c.primaryBtn} text-base font-black py-5 rounded-2xl transition-transform active:scale-95 shadow-lg`}>
-                              Procesar Pago
-                            </button>
+                            {isWebOrder(pedido) ? (
+                              <button onClick={() => setPedidoACobrar(pedido)} className={`w-full bg-blue-500 hover:bg-blue-600 text-white text-base font-black py-5 rounded-2xl transition-transform active:scale-95 shadow-lg flex items-center justify-center gap-2`}>
+                                <PackageSearch size={20} /> Despachar Delivery
+                              </button>
+                            ) : (
+                              <button onClick={() => setPedidoACobrar(pedido)} className={`w-full ${c.primaryBtn} text-base font-black py-5 rounded-2xl transition-transform active:scale-95 shadow-lg`}>
+                                Procesar Pago
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
